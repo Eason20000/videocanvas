@@ -233,7 +233,7 @@ def process(videofile, frameskip, sc8850, interlace, sd90):
     midi.save(output_file)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Convert videos to MIDI files which can be read by Roland Sound Canvas."
     )
@@ -267,3 +267,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     process(args.input_video, args.frameskip, args.sc8850, args.interlace, args.sd90)
+
+
+if __name__ == "__main__":
+    main()

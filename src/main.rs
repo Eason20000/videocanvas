@@ -99,7 +99,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return videocanvas::stream_video(input, &options, &port);
     }
 
-    let smf = videocanvas::convert_video(input, &options)?;
+    let arena = videocanvas::Arena::new();
+    let smf = videocanvas::convert_video(input, &options, &arena)?;
     let path = match args.output {
         Some(p) => p,
         None => output_path(input, &options)?,

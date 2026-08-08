@@ -189,9 +189,12 @@ where
     Ok(())
 }
 
-/// Process video -> MIDI SMF file (returned as `Smf<'static>` for the caller to save).
-pub fn video_to_smf(input: &str, options: &Options) -> Result<Smf<'static>> {
-    let arena = Arena::new();
+/// Process video -> MIDI SMF. Arena must outlive the returned Smf.
+pub fn video_to_smf<'a>(
+    input: &str,
+    options: &Options,
+    arena: &'a Arena,
+) -> Result<Smf<'a>> {
     let header = Header::new(Format::Parallel, Timing::Metrical(u15::new(480)));
     let mut smf = Smf::new(header);
 
@@ -230,7 +233,7 @@ pub fn video_to_smf(input: &str, options: &Options) -> Result<Smf<'static>> {
     });
     smf.tracks.push(track_data);
 
-    Ok(smf.to_static())
+    Ok(smf)
 }
 
 /// Process video -> stream sysex messages in real-time to a MIDI output port,

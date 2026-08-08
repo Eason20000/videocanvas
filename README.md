@@ -29,17 +29,18 @@ nix develop  # then: cargo build && cargo run -- <video> [options]
 ## Library
 
 ```rust
-use videocanvas::{convert_image, convert_video, Options, DeviceMode};
+use videocanvas::{convert_image, convert_video, Arena, Options, DeviceMode};
 
 // single image -> Roland sysex bytes
 let sysex = convert_image(&gray8_pixels, DeviceMode::Sc8850);
 
 // video -> MIDI file
+let arena = Arena::new();
 let smf = convert_video("input.mp4", &Options {
     framerate: 24,
     mode: DeviceMode::Sc8850,
     interlace: true,
-})?;
+}, &arena)?;
 smf.save("output.mid")?;
 ```
 

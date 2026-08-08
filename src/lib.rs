@@ -4,6 +4,7 @@ pub mod image;
 pub mod process;
 pub mod sysex;
 
+pub use midly::Arena;
 use midly::Smf;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -56,9 +57,9 @@ pub fn convert_image(data: &[u8], mode: DeviceMode) -> Vec<Vec<u8>> {
     }
 }
 
-/// Video file -> MIDI Smf (caller saves with `smf.save(path)`).
-pub fn convert_video(input: &str, options: &Options) -> Result<Smf<'static>> {
-    process::video_to_smf(input, options)
+/// Video file -> MIDI Smf. Arena must outlive the returned Smf.
+pub fn convert_video<'a>(input: &str, options: &Options, arena: &'a Arena) -> Result<Smf<'a>> {
+    process::video_to_smf(input, options, arena)
 }
 
 /// Video file -> real-time MIDI port, paced by the fps filter tempo.

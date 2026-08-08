@@ -46,6 +46,42 @@ pub fn otsu_threshold(data: &[u8]) -> Vec<bool> {
     data.iter().map(|&p| p <= threshold).collect()
 }
 
+/// Floyd-Steinberg error-diffusion dither: converts GRAY8 to binary via
+/// midpoint threshold with error propagated to unprocessed neighbors.
+/// Returns `Vec<bool>` where true = dark pixel (canvas "on").
+pub fn floyd_steinberg_dither(data: &[u8], width: u32, height: u32) -> Vec<bool> {
+    let w = width as usize;
+    let h = height as usize;
+    let mut buf: Vec<i16> = data.iter().map(|&p| p as i16).collect();
+    let mut out = vec![false; w * h];
+
+    for y in 0..h {
+        for x in 0..w {
+            let idx = y * w + x;
+            let old = buf[idx];
+            let black = old < 128;
+            let new: i16 = if black { 0 } else { 255 };
+            out[idx] = black;
+            let err = old - new;
+
+            if x + 1 < w {
+                buf[idx + 1] += err * 7 / 16;
+            }
+            if y + 1 < h {
+                if x > 0 {
+                    buf[(y + 1) * w + x - 1] += err * 3 / 16;
+                }
+                buf[(y + 1) * w + x] += err * 5 / 16;
+                if x + 1 < w {
+                    buf[(y + 1) * w + x + 1] += err / 16;
+                }
+            }
+        }
+    }
+
+    out
+}
+
 /// Extract tight-packed GRAY8 pixels from an ffmpeg frame,
 /// handling stride alignment when present.
 pub fn extract_pixels(frame: &Video) -> Vec<u8> {
@@ -119,5 +155,21 @@ mod tests {
         let order = interlace_section_order(1, true);
         assert_eq!(order.len(), 8);
         assert_eq!(&order[..], &[1, 3, 5, 7, 9, 11, 13, 15]);
+    }
+
+    #[test]
+    fn test_floyd_steinberg_dither_identity() {
+        let data = vec![0u8; 100];
+        let out = floyd_steinberg_dither(&data, 10, 10);
+        assert_eq!(out.len(), 100);
+        assert!(out.iter().all(|&b| b));
+    }
+
+    #[test]
+    fn test_floyd_steinberg_dither_all_white() {
+        let data = vec![255u8; 100];
+        let out = floyd_steinberg_dither(&data, 10, 10);
+        assert_eq!(out.len(), 100);
+        assert!(out.iter().all(|&b| !b));
     }
 }

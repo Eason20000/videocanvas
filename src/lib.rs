@@ -27,6 +27,8 @@ pub struct Options {
     pub mode: DeviceMode,
     /// Interlace: alternating section sets per frame (SC-8850 only).
     pub interlace: bool,
+    /// Floyd-Steinberg dithering (SC-8850/SD-90 only).
+    pub dither: bool,
 }
 
 /// Single GRAY8 image -> complete Roland sysex messages.

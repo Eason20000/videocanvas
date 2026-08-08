@@ -38,7 +38,11 @@ fn process_frame(
 ) -> Result<Vec<MidiEvent>> {
     let frame_duration = 1.0 / options.framerate as f64;
     let pixels = image::extract_pixels(filtered);
-    let binary = image::otsu_threshold(&pixels);
+    let binary = if options.dither && matches!(options.mode, DeviceMode::Sc8850 | DeviceMode::Sd90) {
+        image::floyd_steinberg_dither(&pixels, filtered.width(), filtered.height())
+    } else {
+        image::otsu_threshold(&pixels)
+    };
     let frame_seconds = filtered.pts().unwrap_or(0) as f64 / options.framerate as f64;
 
     match options.mode {

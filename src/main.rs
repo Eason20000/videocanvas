@@ -20,6 +20,9 @@ struct Args {
     #[arg(short = 'e', long, help = "Enable SD-90 reduced columns (SC-8850 only)")]
     sd90: bool,
 
+    #[arg(short = 'd', long, help = "Enable Floyd-Steinberg dithering (SC-8850/SD-90)")]
+    dither: bool,
+
     #[arg(short, long, help = "Output MIDI file path (auto-generated if omitted)")]
     output: Option<String>,
 
@@ -77,6 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         framerate: args.framerate,
         mode,
         interlace: args.interlace,
+        dither: args.dither,
     };
 
     #[cfg(feature = "midi-output")]

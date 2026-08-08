@@ -23,6 +23,9 @@ struct Args {
     #[arg(short = 'd', long, help = "Enable Floyd-Steinberg dithering (SC-8850/SD-90)")]
     dither: bool,
 
+    #[arg(long = "edge", value_name = "THRESHOLD", num_args = 0..=1, default_missing_value = "50", help = "Sobel edge detection (SC-8850/SD-90 only)")]
+    edge: Option<u8>,
+
     #[arg(short, long, help = "Output MIDI file path (auto-generated if omitted)")]
     output: Option<String>,
 
@@ -81,6 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mode,
         interlace: args.interlace,
         dither: args.dither,
+        edge: args.edge,
     };
 
     #[cfg(feature = "midi-output")]

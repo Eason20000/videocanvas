@@ -82,6 +82,35 @@ pub fn floyd_steinberg_dither(data: &[u8], width: u32, height: u32) -> Vec<bool>
     out
 }
 
+/// Sobel edge detection: 3x3 gradient kernels (horizontal + vertical),
+/// magnitude via |gx|+|gy|, thresholded to binary.
+/// Returns `Vec<bool>` where true = edge pixel (canvas "on").
+pub fn sobel_edge_detect(data: &[u8], width: u32, height: u32, threshold: u8) -> Vec<bool> {
+    let w = width as usize;
+    let h = height as usize;
+    let mut out = vec![false; w * h];
+
+    for y in 1..h - 1 {
+        for x in 1..w - 1 {
+            let p = |dy: isize, dx: isize| -> i16 {
+                data[((y as isize + dy) as usize) * w + (x as isize + dx) as usize] as i16
+            };
+
+            let gx = -p(-1, -1) + p(-1, 1)
+                - 2 * p(0, -1) + 2 * p(0, 1)
+                - p(1, -1) + p(1, 1);
+
+            let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1)
+                + p(1, -1) + 2 * p(1, 0) + p(1, 1);
+
+            let mag = gx.abs() + gy.abs();
+            out[y * w + x] = mag > threshold as i16;
+        }
+    }
+
+    out
+}
+
 /// Extract tight-packed GRAY8 pixels from an ffmpeg frame,
 /// handling stride alignment when present.
 pub fn extract_pixels(frame: &Video) -> Vec<u8> {
@@ -171,5 +200,33 @@ mod tests {
         let out = floyd_steinberg_dither(&data, 10, 10);
         assert_eq!(out.len(), 100);
         assert!(out.iter().all(|&b| !b));
+    }
+
+    #[test]
+    fn test_sobel_uniform_no_edges() {
+        let data = vec![128u8; 100];
+        let out = sobel_edge_detect(&data, 10, 10, 50);
+        assert_eq!(out.len(), 100);
+        assert!(out.iter().all(|&b| !b));
+    }
+
+    #[test]
+    fn test_sobel_step_edge() {
+        let mut data = vec![0u8; 100];
+        for y in 5..10 {
+            for x in 5..10 {
+                data[y * 10 + x] = 255;
+            }
+        }
+        let out = sobel_edge_detect(&data, 10, 10, 50);
+        let edges = out.iter().filter(|&&b| b).count();
+        assert!(edges > 0 && edges < 50);
+    }
+
+    #[test]
+    fn test_sobel_output_len() {
+        let data = vec![0u8; 100];
+        let out = sobel_edge_detect(&data, 10, 10, 50);
+        assert_eq!(out.len(), 100);
     }
 }

@@ -29,6 +29,8 @@ pub struct Options {
     pub interlace: bool,
     /// Floyd-Steinberg dithering (SC-8850/SD-90 only).
     pub dither: bool,
+    /// Sobel edge detection threshold, None = disabled (SC-8850/SD-90 only).
+    pub edge: Option<u8>,
 }
 
 /// Single GRAY8 image -> complete Roland sysex messages.

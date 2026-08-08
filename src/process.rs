@@ -38,7 +38,11 @@ fn process_frame(
 ) -> Result<Vec<MidiEvent>> {
     let frame_duration = 1.0 / options.framerate as f64;
     let pixels = image::extract_pixels(filtered);
-    let binary = if options.dither && matches!(options.mode, DeviceMode::Sc8850 | DeviceMode::Sd90) {
+    let binary = if let Some(t) = options.edge
+        && matches!(options.mode, DeviceMode::Sc8850 | DeviceMode::Sd90)
+    {
+        image::sobel_edge_detect(&pixels, filtered.width(), filtered.height(), t)
+    } else if options.dither && matches!(options.mode, DeviceMode::Sc8850 | DeviceMode::Sd90) {
         image::floyd_steinberg_dither(&pixels, filtered.width(), filtered.height())
     } else {
         image::otsu_threshold(&pixels)

@@ -1,0 +1,18 @@
+[package]
+name = "videocanvas"
+version = "1.0.0"
+edition = "2024"
+
+[features]
+default = ["midi-output"]
+midi-output = ["midir"]
+
+[dependencies]
+ffmpeg-next = { version = "9", default-features = false, features = ["codec", "format", "filter", "software-scaling"] }
+midly = { version = "0.5", default-features = false, features = ["std"] }
+clap = { version = "4", features = ["derive"] }
+midir = { version = "0.10", optional = true }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

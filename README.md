@@ -1,24 +1,48 @@
 # VideoCanvas
-Convert videos to MIDI files for Roland Sound Canvas (with SC-8850 support).
 
-## Usage
+Convert videos to MIDI for Roland Sound Canvas (SC-55/SC-8850/SD-90).
+
+## CLI
+
+```
+videocanvas <video> [options]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-f, --framerate` | 30 | Output framerate (via ffmpeg fps filter) |
+| `-s, --sc8850` | off | SC-8850 mode (160x64 resolution) |
+| `-i, --interlace` | off | Interlace (SC-8850 only) |
+| `-e, --sd90` | off | SD-90 reduced columns (SC-8850 only) |
+| `-o, --output` | auto | Output .mid path |
+| `--midi-port` | - | Stream to MIDI output port in real-time |
+| `--list-ports` | - | List available MIDI output ports |
 
 ### With Nix
 
-```bash
-nix run . -- <video-file> [options]
-nix build && ./result/bin/videocanvas <video-file> [options]
-nix develop  # then: python main.py <video-file> [options]
+```
+nix run . -- <video> [options]
+nix build && ./result/bin/videocanvas <video> [options]
+nix develop  # then: cargo build && cargo run -- <video> [options]
 ```
 
-### Without Nix
+## Library
 
-```bash
-pip install .
-videocanvas <video-file> [options]
+```rust
+use videocanvas::{convert_image, convert_video, Options, DeviceMode};
+
+// single image -> Roland sysex bytes
+let sysex = convert_image(&gray8_pixels, DeviceMode::Sc8850);
+
+// video -> MIDI file
+let smf = convert_video("input.mp4", &Options {
+    framerate: 24,
+    mode: DeviceMode::Sc8850,
+    interlace: true,
+})?;
+smf.save("output.mid")?;
 ```
-
-Run `videocanvas -h` to see all options.
 
 ## License
+
 GPL-3.0

@@ -1,3 +1,9 @@
 *.mid
 *.mp4
+*.swp
 result
+
+
+# Added by cargo
+
+/target

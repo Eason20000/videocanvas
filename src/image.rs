@@ -82,13 +82,15 @@ pub fn floyd_steinberg_dither(data: &[u8], width: u32, height: u32) -> Vec<bool>
     out
 }
 
-/// Sobel edge detection: 3x3 gradient kernels (horizontal + vertical),
-/// magnitude via |gx|+|gy|, thresholded to binary.
+/// Sobel edge detection with non-maximum suppression: 3x3 gradient kernels,
+/// magnitude via |gx|+|gy|, NMS thins edges to 1px, then binary threshold.
 /// Returns `Vec<bool>` where true = edge pixel (canvas "on").
 pub fn sobel_edge_detect(data: &[u8], width: u32, height: u32, threshold: u8) -> Vec<bool> {
     let w = width as usize;
     let h = height as usize;
-    let mut out = vec![false; w * h];
+    let t = threshold as i16;
+
+    let mut mags = vec![0i16; w * h];
 
     for y in 1..h - 1 {
         for x in 1..w - 1 {
@@ -103,8 +105,53 @@ pub fn sobel_edge_detect(data: &[u8], width: u32, height: u32, threshold: u8) ->
             let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1)
                 + p(1, -1) + 2 * p(1, 0) + p(1, 1);
 
-            let mag = gx.abs() + gy.abs();
-            out[y * w + x] = mag > threshold as i16;
+            mags[y * w + x] = gx.abs() + gy.abs();
+        }
+    }
+
+    let mut out = vec![false; w * h];
+
+    for y in 1..h - 1 {
+        for x in 1..w - 1 {
+            let idx = y * w + x;
+            let mag = mags[idx];
+            if mag <= t {
+                continue;
+            }
+
+            let p = |dy: isize, dx: isize| -> i16 {
+                data[((y as isize + dy) as usize) * w + (x as isize + dx) as usize] as i16
+            };
+
+            let gx = -p(-1, -1) + p(-1, 1)
+                - 2 * p(0, -1) + 2 * p(0, 1)
+                - p(1, -1) + p(1, 1);
+
+            let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1)
+                + p(1, -1) + 2 * p(1, 0) + p(1, 1);
+
+            let agx = gx.abs();
+            let agy = gy.abs();
+
+            if agy > agx * 2 {
+                if mag < mags[y * w + x - 1] || mag < mags[y * w + x + 1] {
+                    continue;
+                }
+            } else if agx > agy * 2 {
+                if mag < mags[(y - 1) * w + x] || mag < mags[(y + 1) * w + x] {
+                    continue;
+                }
+            } else if gx * gy > 0 {
+                if mag < mags[(y - 1) * w + x + 1] || mag < mags[(y + 1) * w + x - 1] {
+                    continue;
+                }
+            } else {
+                if mag < mags[(y - 1) * w + x - 1] || mag < mags[(y + 1) * w + x + 1] {
+                    continue;
+                }
+            }
+
+            out[idx] = true;
         }
     }
 

@@ -211,12 +211,14 @@ pub fn video_to_smf(input: &str, options: &Options) -> Result<Smf<'static>> {
     let mut prev_tick: u64 = 0;
 
     run_pipeline(input, options, |events| {
-        for event in &events {
+        for event in events {
             let delta = (event.absolute_tick - prev_tick).min(u32::MAX as u64) as u32;
             prev_tick = event.absolute_tick;
+            let mut data = event.data;
+            data.push(0xF7);
             track_data.push(TrackEvent {
                 delta: u28::new(delta),
-                kind: TrackEventKind::SysEx(arena.add(&event.data)),
+                kind: TrackEventKind::SysEx(arena.add(&data)),
             });
         }
         Ok(())

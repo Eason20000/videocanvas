@@ -14,6 +14,8 @@ videocanvas <video> [options]
 | `-s, --sc8850` | off | SC-8850 mode (160x64 resolution) |
 | `-i, --interlace` | off | Interlace (SC-8850 only) |
 | `-e, --sd90` | off | SD-90 reduced columns (SC-8850 only) |
+| `-d, --dither` | off | Floyd-Steinberg dithering (SC-8850/SD-90 only) |
+| `--edge [THRESHOLD]` | 50 | Sobel edge detection (SC-8850/SD-90 only) |
 | `-o, --output` | auto | Output .mid path |
 | `--midi-port` | - | Stream to MIDI output port in real-time |
 | `--list-ports` | - | List available MIDI output ports |
@@ -31,7 +33,7 @@ nix develop  # then: cargo build && cargo run -- <video> [options]
 ```rust
 use videocanvas::{convert_image, convert_video, Arena, Options, DeviceMode};
 
-// single image -> Roland sysex bytes
+// single image -> Roland sysex messages
 let sysex = convert_image(&gray8_pixels, DeviceMode::Sc8850);
 
 // video -> MIDI file
@@ -40,6 +42,8 @@ let smf = convert_video("input.mp4", &Options {
     framerate: 24,
     mode: DeviceMode::Sc8850,
     interlace: true,
+    dither: false,
+    edge: None,
 }, &arena)?;
 smf.save("output.mid")?;
 ```

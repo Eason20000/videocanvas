@@ -24,27 +24,44 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install system deps (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y nasm yasm pkg-config clang libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y pkg-config clang libasound2-dev libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libswscale-dev
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
-        run: brew install nasm pkg-config
-      - name: Build static FFmpeg (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: bash scripts/build-ffmpeg.sh
-      - name: Install static FFmpeg (Windows)
+        run: |
+          brew install nasm pkg-config ffmpeg dylibbundler
+          echo "PKG_CONFIG_PATH=$(brew --prefix ffmpeg)/lib/pkgconfig" >> "$GITHUB_ENV"
+      - name: Install pkg-config (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install ffmpeg:x64-windows-static
+        run: choco install -y pkgconfiglite
+      - name: Download prebuilt FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ver = "ffmpeg-n8.1-latest-win64-gpl-shared-8.1"
+          curl.exe --fail --location --output "$ver.zip" "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/$ver.zip"
+          curl.exe --fail --location --output checksums.sha256 "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256"
+          $line = Select-String -Path checksums.sha256 -Pattern "$ver\.zip" | Select-Object -First 1
+          if (-not $line) { throw "checksum entry not found for $ver.zip" }
+          if ($line.Line -notmatch '([0-9a-fA-F]{64})') { throw "cannot parse checksum for $ver.zip" }
+          $expected = $Matches[1].ToLower()
+          $actual = (Get-FileHash "$ver.zip" -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) { throw "checksum mismatch for $ver.zip" }
+          Expand-Archive "$ver.zip" ffmpeg-btbn
+          "FFMPEG_DIR=${{ github.workspace }}/ffmpeg-btbn/$ver" >> $env:GITHUB_ENV
+          "PKG_CONFIG_PATH=${{ github.workspace }}/ffmpeg-btbn/$ver/lib/pkgconfig" >> $env:GITHUB_ENV
       - name: Cargo build
         run: cargo build --release
-        env:
-          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
-          VCPKG_DEFAULT_TRIPLET: x64-windows-static
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $zip = "videocanvas-${{ github.event.release.tag_name }}-windows-x64.zip"
-          Compress-Archive -Path target\release\videocanvas.exe, README.md, LICENSE -DestinationPath $zip
+          $tag = "${{ github.event.release.tag_name }}"
+          $zip = "videocanvas-$tag-windows-x64.zip"
+          New-Item -ItemType Directory -Force stage | Out-Null
+          Copy-Item target\release\videocanvas.exe stage/
+          Copy-Item ffmpeg-btbn\ffmpeg-n8.1-latest-win64-gpl-shared-8.1\bin\*.dll stage/
+          Copy-Item README.md, LICENSE stage/
+          Compress-Archive -Path stage/* -DestinationPath $zip
           $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
           "$hash  $zip" | Out-File "$zip.sha256" -Encoding ascii
       - name: Package (Linux AppImage)
@@ -71,8 +88,10 @@ jobs:
           set -euo pipefail
           TAG="${{ github.event.release.tag_name }}"
           mkdir -p stage
-          cp target/release/videocanvas README.md LICENSE stage/
-          tar -czf "videocanvas-$TAG-macos-arm64.tar.gz" -C stage videocanvas README.md LICENSE
+          cp target/release/videocanvas stage/
+          dylibbundler -od -b -x ./stage/videocanvas -d ./stage/libs -p @executable_path/libs
+          cp README.md LICENSE stage/
+          tar -czf "videocanvas-$TAG-macos-arm64.tar.gz" -C stage videocanvas libs README.md LICENSE
           shasum -a 256 "videocanvas-$TAG-macos-arm64.tar.gz" > "videocanvas-$TAG-macos-arm64.tar.gz.sha256"
       - name: Upload to release
         uses: softprops/action-gh-release@v2

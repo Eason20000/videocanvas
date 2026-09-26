@@ -57,8 +57,13 @@ pub fn calculate_data_sd90(binary: &[bool]) -> Vec<Vec<u8>> {
 
 /// Roland checksum: (0x80 - sum(address ++ data) % 0x80) & 0x7F.
 pub fn calculate_checksum(address: &[u8], data: &[u8]) -> u8 {
-    (128u8 - (address.iter().chain(data.iter())
-        .fold(0u8, |acc, &b| acc.wrapping_add(b)) % 128)) & 127
+    (128u8
+        - (address
+            .iter()
+            .chain(data.iter())
+            .fold(0u8, |acc, &b| acc.wrapping_add(b))
+            % 128))
+        & 127
 }
 
 /// Pack a single sysex message (SC-55 mode): header + address + data + checksum.
@@ -83,18 +88,22 @@ pub fn pack_sysex_message(data: &[u8]) -> Vec<u8> {
 pub fn pack_sysex_message_8850(sections: &[Vec<u8>]) -> Vec<Vec<u8>> {
     const HEADER: [u8; 4] = [0x41, 0x10, 0x45, 0x12];
 
-    sections.iter().enumerate().map(|(section, data)| {
-        let mut sysex: Vec<u8> = Vec::with_capacity(116);
-        let address: [u8; 3] = [0x20, section as u8, 0x00];
-        let checksum = calculate_checksum(&address, data);
+    sections
+        .iter()
+        .enumerate()
+        .map(|(section, data)| {
+            let mut sysex: Vec<u8> = Vec::with_capacity(116);
+            let address: [u8; 3] = [0x20, section as u8, 0x00];
+            let checksum = calculate_checksum(&address, data);
 
-        sysex.extend_from_slice(&HEADER);
-        sysex.extend_from_slice(&address);
-        sysex.extend_from_slice(data);
-        sysex.push(checksum);
+            sysex.extend_from_slice(&HEADER);
+            sysex.extend_from_slice(&address);
+            sysex.extend_from_slice(data);
+            sysex.push(checksum);
 
-        sysex
-    }).collect()
+            sysex
+        })
+        .collect()
 }
 
 #[cfg(test)]

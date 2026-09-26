@@ -17,16 +17,28 @@ struct Args {
     #[arg(short, long, help = "Enable interlace mode (SC-8850 only)")]
     interlace: bool,
 
-    #[arg(short = 'e', long, help = "Enable SD-90 reduced columns (SC-8850 only)")]
+    #[arg(
+        short = 'e',
+        long,
+        help = "Enable SD-90 reduced columns (SC-8850 only)"
+    )]
     sd90: bool,
 
-    #[arg(short = 'd', long, help = "Enable Floyd-Steinberg dithering (SC-8850/SD-90)")]
+    #[arg(
+        short = 'd',
+        long,
+        help = "Enable Floyd-Steinberg dithering (SC-8850/SD-90)"
+    )]
     dither: bool,
 
     #[arg(long = "edge", value_name = "THRESHOLD", num_args = 0..=1, default_missing_value = "50", help = "Sobel edge detection (SC-8850/SD-90 only)")]
     edge: Option<u8>,
 
-    #[arg(short, long, help = "Output MIDI file path (auto-generated if omitted)")]
+    #[arg(
+        short,
+        long,
+        help = "Output MIDI file path (auto-generated if omitted)"
+    )]
     output: Option<String>,
 
     #[cfg(feature = "midi-output")]
@@ -38,7 +50,10 @@ struct Args {
     list_ports: bool,
 }
 
-fn output_path(input_video: &str, options: &videocanvas::Options) -> Result<String, Box<dyn std::error::Error>> {
+fn output_path(
+    input_video: &str,
+    options: &videocanvas::Options,
+) -> Result<String, Box<dyn std::error::Error>> {
     let stem = Path::new(input_video)
         .file_stem()
         .ok_or("invalid input path")?
@@ -47,8 +62,16 @@ fn output_path(input_video: &str, options: &videocanvas::Options) -> Result<Stri
 
     let suffix = format!(
         "{}{}{}f{}",
-        if options.mode != videocanvas::DeviceMode::Sc55 { "s" } else { "" },
-        if options.mode == videocanvas::DeviceMode::Sd90 { "e" } else { "" },
+        if options.mode != videocanvas::DeviceMode::Sc55 {
+            "s"
+        } else {
+            ""
+        },
+        if options.mode == videocanvas::DeviceMode::Sd90 {
+            "e"
+        } else {
+            ""
+        },
         if options.interlace { "i" } else { "" },
         options.framerate,
     );
@@ -59,10 +82,11 @@ fn output_path(input_video: &str, options: &videocanvas::Options) -> Result<Stri
 #[cfg(feature = "midi-output")]
 fn list_midi_ports() -> Result<(), Box<dyn std::error::Error>> {
     use midir::MidiOutput;
-    let midi_out = MidiOutput::new("videocanvas")
-        .map_err(|e| format!("midi init: {}", e))?;
+    let midi_out = MidiOutput::new("videocanvas").map_err(|e| format!("midi init: {}", e))?;
     for port in midi_out.ports() {
-        let name = midi_out.port_name(&port).unwrap_or_else(|_| "unknown".into());
+        let name = midi_out
+            .port_name(&port)
+            .unwrap_or_else(|_| "unknown".into());
         println!("{}", name);
     }
     Ok(())
@@ -92,7 +116,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return list_midi_ports();
     }
 
-    let input = args.input_video.as_deref().ok_or("no input video specified")?;
+    let input = args
+        .input_video
+        .as_deref()
+        .ok_or("no input video specified")?;
 
     #[cfg(feature = "midi-output")]
     if let Some(port) = args.midi_port {

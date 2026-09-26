@@ -3,9 +3,9 @@
 
 use std::sync::OnceLock;
 
-use ffmpeg_next as ffmpeg;
 use ffmpeg::media::Type;
 use ffmpeg::util::frame::video::Video;
+use ffmpeg_next as ffmpeg;
 use midly::num::{u15, u24, u28};
 use midly::{Arena, Format, Header, MetaMessage, Smf, Timing, TrackEvent, TrackEventKind};
 
@@ -55,7 +55,10 @@ fn process_frame(
             let sysex = sysex::pack_sysex_message(&data);
             let abs_tick = (frame_seconds * TICKS_PER_SECOND) as u64;
             *prev_abs_tick = abs_tick;
-            Ok(vec![MidiEvent { absolute_tick: abs_tick, data: sysex }])
+            Ok(vec![MidiEvent {
+                absolute_tick: abs_tick,
+                data: sysex,
+            }])
         }
         DeviceMode::Sc8850 | DeviceMode::Sd90 => {
             let sections = if options.mode == DeviceMode::Sd90 {
@@ -69,15 +72,17 @@ fn process_frame(
 
             let mut events = Vec::with_capacity(num_sections);
             for (slot, &section_idx) in section_order.iter().enumerate() {
-                let abs_time = frame_seconds
-                    + slot as f64 * frame_duration / num_sections as f64;
+                let abs_time = frame_seconds + slot as f64 * frame_duration / num_sections as f64;
                 let abs_tick = (abs_time * TICKS_PER_SECOND) as u64;
                 events.push(MidiEvent {
                     absolute_tick: abs_tick,
                     data: std::mem::take(&mut sysexes[section_idx]),
                 });
             }
-            *prev_abs_tick = events.last().map(|e| e.absolute_tick).unwrap_or(*prev_abs_tick);
+            *prev_abs_tick = events
+                .last()
+                .map(|e| e.absolute_tick)
+                .unwrap_or(*prev_abs_tick);
             Ok(events)
         }
     }
@@ -114,7 +119,11 @@ where
         "video_size={}x{}:pix_fmt={}:time_base={}:pixel_aspect={}",
         decoder.width(),
         decoder.height(),
-        decoder.format().descriptor().ok_or("unknown pixel format")?.name(),
+        decoder
+            .format()
+            .descriptor()
+            .ok_or("unknown pixel format")?
+            .name(),
         time_base,
         decoder.aspect_ratio(),
     );
@@ -135,7 +144,10 @@ where
         options.framerate, target_w, target_h,
     );
 
-    graph.output("in", 0)?.input("out", 0)?.parse(&filter_spec)?;
+    graph
+        .output("in", 0)?
+        .input("out", 0)?
+        .parse(&filter_spec)?;
     graph.validate()?;
 
     let mut prev_abs_tick: u64 = 0;
@@ -149,16 +161,21 @@ where
 
         let mut decoded = Video::empty();
         while decoder.receive_frame(&mut decoded).is_ok() {
-            graph.get("in").ok_or("filter graph missing 'in'")?.source().add(&decoded)?;
+            graph
+                .get("in")
+                .ok_or("filter graph missing 'in'")?
+                .source()
+                .add(&decoded)?;
 
             let mut filtered = Video::empty();
-            while graph.get("out").ok_or("filter graph missing 'out'")?.sink().frame(&mut filtered).is_ok() {
-                let events = process_frame(
-                    &filtered,
-                    frame_index,
-                    options,
-                    &mut prev_abs_tick,
-                )?;
+            while graph
+                .get("out")
+                .ok_or("filter graph missing 'out'")?
+                .sink()
+                .frame(&mut filtered)
+                .is_ok()
+            {
+                let events = process_frame(&filtered, frame_index, options, &mut prev_abs_tick)?;
                 on_frame(events)?;
                 frame_index += 1;
             }
@@ -168,18 +185,27 @@ where
     decoder.send_eof()?;
     let mut decoded = Video::empty();
     while decoder.receive_frame(&mut decoded).is_ok() {
-        graph.get("in").ok_or("filter graph missing 'in'")?.source().add(&decoded)?;
+        graph
+            .get("in")
+            .ok_or("filter graph missing 'in'")?
+            .source()
+            .add(&decoded)?;
     }
-    graph.get("in").ok_or("filter graph missing 'in'")?.source().flush()?;
+    graph
+        .get("in")
+        .ok_or("filter graph missing 'in'")?
+        .source()
+        .flush()?;
 
     let mut filtered = Video::empty();
-    while graph.get("out").ok_or("filter graph missing 'out'")?.sink().frame(&mut filtered).is_ok() {
-        let events = process_frame(
-            &filtered,
-            frame_index,
-            options,
-            &mut prev_abs_tick,
-        )?;
+    while graph
+        .get("out")
+        .ok_or("filter graph missing 'out'")?
+        .sink()
+        .frame(&mut filtered)
+        .is_ok()
+    {
+        let events = process_frame(&filtered, frame_index, options, &mut prev_abs_tick)?;
         on_frame(events)?;
         frame_index += 1;
     }
@@ -190,11 +216,7 @@ where
 }
 
 /// Process video -> MIDI SMF. Arena must outlive the returned Smf.
-pub fn video_to_smf<'a>(
-    input: &str,
-    options: &Options,
-    arena: &'a Arena,
-) -> Result<Smf<'a>> {
+pub fn video_to_smf<'a>(input: &str, options: &Options, arena: &'a Arena) -> Result<Smf<'a>> {
     let header = Header::new(Format::Parallel, Timing::Metrical(u15::new(480)));
     let mut smf = Smf::new(header);
 
@@ -244,8 +266,7 @@ pub fn video_to_port(input: &str, options: &Options, port_name: &str) -> Result<
 
     use midir::MidiOutput;
 
-    let midi_out =
-        MidiOutput::new("videocanvas").map_err(|e| format!("midi init: {}", e))?;
+    let midi_out = MidiOutput::new("videocanvas").map_err(|e| format!("midi init: {}", e))?;
 
     let ports = midi_out.ports();
     let port = ports
@@ -266,8 +287,8 @@ pub fn video_to_port(input: &str, options: &Options, port_name: &str) -> Result<
 
     run_pipeline(input, options, |events| {
         for event in &events {
-            let target = start
-                + Duration::from_secs_f64(event.absolute_tick as f64 / TICKS_PER_SECOND);
+            let target =
+                start + Duration::from_secs_f64(event.absolute_tick as f64 / TICKS_PER_SECOND);
             let now = Instant::now();
             if target > now {
                 std::thread::sleep(target - now);
@@ -277,8 +298,7 @@ pub fn video_to_port(input: &str, options: &Options, port_name: &str) -> Result<
             msg.push(0xF0);
             msg.extend_from_slice(&event.data);
             msg.push(0xF7);
-            conn.send(&msg)
-                .map_err(|e| format!("midi send: {}", e))?;
+            conn.send(&msg).map_err(|e| format!("midi send: {}", e))?;
         }
         Ok(())
     })

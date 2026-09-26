@@ -1,4 +1,13 @@
-{ self, lib, rustPlatform, pkg-config, clang, ffmpeg, alsa-lib, clippy }:
+{
+  self,
+  lib,
+  rustPlatform,
+  pkg-config,
+  clang,
+  ffmpeg,
+  alsa-lib,
+  clippy,
+}:
 
 rustPlatform.buildRustPackage rec {
   pname = (lib.importTOML (src + "/Cargo.toml")).package.name;
@@ -7,8 +16,16 @@ rustPlatform.buildRustPackage rec {
   src = self;
   cargoLock.lockFile = src + "/Cargo.lock";
 
-  nativeBuildInputs = [ pkg-config clang rustPlatform.bindgenHook clippy ];
-  buildInputs = [ ffmpeg alsa-lib ];
+  nativeBuildInputs = [
+    pkg-config
+    clang
+    rustPlatform.bindgenHook
+    clippy
+  ];
+  buildInputs = [
+    ffmpeg
+    alsa-lib
+  ];
 
   env.FFMPEG_DIR = ffmpeg.dev;
 

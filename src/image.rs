@@ -1,8 +1,8 @@
 //! Image processing utilities: OTSU binarization, ffmpeg frame extraction,
 //! and SC-8850 interlace section ordering.
 
-use ffmpeg_next as ffmpeg;
 use ffmpeg::util::frame::video::Video;
+use ffmpeg_next as ffmpeg;
 
 /// OTSU adaptive threshold: finds optimal binary split for a GRAY8 image.
 /// Returns `Vec<bool>` where true = dark pixel (canvas "on").
@@ -98,12 +98,9 @@ pub fn sobel_edge_detect(data: &[u8], width: u32, height: u32, threshold: u8) ->
                 data[((y as isize + dy) as usize) * w + (x as isize + dx) as usize] as i16
             };
 
-            let gx = -p(-1, -1) + p(-1, 1)
-                - 2 * p(0, -1) + 2 * p(0, 1)
-                - p(1, -1) + p(1, 1);
+            let gx = -p(-1, -1) + p(-1, 1) - 2 * p(0, -1) + 2 * p(0, 1) - p(1, -1) + p(1, 1);
 
-            let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1)
-                + p(1, -1) + 2 * p(1, 0) + p(1, 1);
+            let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1) + p(1, -1) + 2 * p(1, 0) + p(1, 1);
 
             mags[y * w + x] = gx.abs() + gy.abs();
         }
@@ -123,12 +120,9 @@ pub fn sobel_edge_detect(data: &[u8], width: u32, height: u32, threshold: u8) ->
                 data[((y as isize + dy) as usize) * w + (x as isize + dx) as usize] as i16
             };
 
-            let gx = -p(-1, -1) + p(-1, 1)
-                - 2 * p(0, -1) + 2 * p(0, 1)
-                - p(1, -1) + p(1, 1);
+            let gx = -p(-1, -1) + p(-1, 1) - 2 * p(0, -1) + 2 * p(0, 1) - p(1, -1) + p(1, 1);
 
-            let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1)
-                + p(1, -1) + 2 * p(1, 0) + p(1, 1);
+            let gy = -p(-1, -1) - 2 * p(-1, 0) - p(-1, 1) + p(1, -1) + 2 * p(1, 0) + p(1, 1);
 
             let agx = gx.abs();
             let agy = gy.abs();

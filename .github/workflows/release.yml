@@ -1,99 +1,25 @@
 name: release
-# Runs only when a GitHub Release is published. Each matrix job builds,
-# packages and uploads its own artifact to that release.
+# Runs only when a GitHub Release is published. Reuses build.yml for
+# build+package, then uploads the artifacts to the release.
 on:
   release:
     types: [published]
 permissions:
   contents: write
 jobs:
-  release:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            asset: windows-x64
-          - os: ubuntu-22.04
-            asset: linux-x64
-          - os: macos-14
-            asset: macos-arm64
-    runs-on: ${{ matrix.os }}
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      version: -${{ github.event.release.tag_name }}
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install system deps (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config clang libasound2-dev libavcodec-dev libavformat-dev libavfilter-dev libavutil-dev libswscale-dev
-      - name: Install system deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install nasm pkg-config ffmpeg dylibbundler
-          echo "PKG_CONFIG_PATH=$(brew --prefix ffmpeg)/lib/pkgconfig" >> "$GITHUB_ENV"
-      - name: Install pkg-config (Windows)
-        if: runner.os == 'Windows'
-        run: choco install -y pkgconfiglite
-      - name: Download prebuilt FFmpeg (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ver = "ffmpeg-n8.1-latest-win64-gpl-shared-8.1"
-          curl.exe --fail --location --output "$ver.zip" "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/$ver.zip"
-          curl.exe --fail --location --output checksums.sha256 "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/checksums.sha256"
-          $line = Select-String -Path checksums.sha256 -Pattern "$ver\.zip" | Select-Object -First 1
-          if (-not $line) { throw "checksum entry not found for $ver.zip" }
-          if ($line.Line -notmatch '([0-9a-fA-F]{64})') { throw "cannot parse checksum for $ver.zip" }
-          $expected = $Matches[1].ToLower()
-          $actual = (Get-FileHash "$ver.zip" -Algorithm SHA256).Hash.ToLower()
-          if ($expected -ne $actual) { throw "checksum mismatch for $ver.zip" }
-          Expand-Archive "$ver.zip" ffmpeg-btbn
-          "FFMPEG_DIR=${{ github.workspace }}/ffmpeg-btbn/$ver" >> $env:GITHUB_ENV
-          "PKG_CONFIG_PATH=${{ github.workspace }}/ffmpeg-btbn/$ver/lib/pkgconfig" >> $env:GITHUB_ENV
-      - name: Cargo build
-        run: cargo build --release
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $tag = "${{ github.event.release.tag_name }}"
-          $zip = "videocanvas-$tag-windows-x64.zip"
-          New-Item -ItemType Directory -Force stage | Out-Null
-          Copy-Item target\release\videocanvas.exe stage/
-          Copy-Item ffmpeg-btbn\ffmpeg-n8.1-latest-win64-gpl-shared-8.1\bin\*.dll stage/
-          Copy-Item README.md, LICENSE stage/
-          Compress-Archive -Path stage/* -DestinationPath $zip
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          "$hash  $zip" | Out-File "$zip.sha256" -Encoding ascii
-      - name: Package (Linux AppImage)
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
-          mkdir -p AppDir/usr/bin
-          cp target/release/videocanvas AppDir/usr/bin/
-          cp packaging/appimage/videocanvas.desktop AppDir/
-          cp packaging/appimage/icon.svg AppDir/videocanvas.svg
-          cp packaging/appimage/AppRun AppDir/
-          chmod +x AppDir/AppRun AppDir/usr/bin/videocanvas
-          curl --fail --location --output linuxdeploy-x86_64.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          export APPIMAGE_EXTRACT_AND_RUN=1
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
-          mv videocanvas-x86_64.AppImage "videocanvas-$TAG-linux-x64.AppImage"
-          sha256sum "videocanvas-$TAG-linux-x64.AppImage" > "videocanvas-$TAG-linux-x64.AppImage.sha256"
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          set -euo pipefail
-          TAG="${{ github.event.release.tag_name }}"
-          mkdir -p stage
-          cp target/release/videocanvas stage/
-          dylibbundler -od -b -x ./stage/videocanvas -d ./stage/libs -p @executable_path/libs
-          cp README.md LICENSE stage/
-          tar -czf "videocanvas-$TAG-macos-arm64.tar.gz" -C stage videocanvas libs README.md LICENSE
-          shasum -a 256 "videocanvas-$TAG-macos-arm64.tar.gz" > "videocanvas-$TAG-macos-arm64.tar.gz.sha256"
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: videocanvas-*
+          files: dist/videocanvas-*

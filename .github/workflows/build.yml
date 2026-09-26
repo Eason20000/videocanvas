@@ -1,8 +1,15 @@
 name: build
-# Build check on every push. No packaging, no uploads; failures go red.
+# Build check on every push; also reusable via workflow_call (see release.yml).
+# Packages and uploads artifacts in both cases; failures go red.
 on:
   push:
   pull_request:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version suffix for artifact names, e.g. -v1.2.0 (empty for plain names)"
+        type: string
+        default: ""
 jobs:
   build:
     strategy:
@@ -10,8 +17,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            asset: windows-x64
           - os: ubuntu-22.04
+            asset: linux-x64
           - os: macos-14
+            asset: macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -45,3 +55,51 @@ jobs:
           "PKG_CONFIG_PATH=${{ github.workspace }}/ffmpeg-btbn/$ver/lib/pkgconfig" >> $env:GITHUB_ENV
       - name: Cargo build
         run: cargo build --release
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = "videocanvas${{ inputs.version }}-windows-x64.zip"
+          New-Item -ItemType Directory -Force stage | Out-Null
+          Copy-Item target\release\videocanvas.exe stage/
+          Copy-Item ffmpeg-btbn\ffmpeg-n8.1-latest-win64-gpl-shared-8.1\bin\*.dll stage/
+          Copy-Item README.md, LICENSE stage/
+          Compress-Archive -Path stage/* -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File "$zip.sha256" -Encoding ascii
+      - name: Package (Linux AppImage)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          SUFFIX="${{ inputs.version }}"
+          mkdir -p AppDir/usr/bin
+          cp target/release/videocanvas AppDir/usr/bin/
+          cp packaging/appimage/videocanvas.desktop AppDir/
+          cp packaging/appimage/icon.svg AppDir/videocanvas.svg
+          cp packaging/appimage/AppRun AppDir/
+          chmod +x AppDir/AppRun AppDir/usr/bin/videocanvas
+          curl --fail --location --output linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+          mv videocanvas-x86_64.AppImage "videocanvas$SUFFIX-linux-x64.AppImage"
+          sha256sum "videocanvas$SUFFIX-linux-x64.AppImage" > "videocanvas$SUFFIX-linux-x64.AppImage.sha256"
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          SUFFIX="${{ inputs.version }}"
+          mkdir -p stage
+          cp target/release/videocanvas stage/
+          dylibbundler -od -b -x ./stage/videocanvas -d ./stage/libs -p @executable_path/libs
+          cp README.md LICENSE stage/
+          tar -czf "videocanvas$SUFFIX-macos-arm64.tar.gz" -C stage videocanvas libs README.md LICENSE
+          shasum -a 256 "videocanvas$SUFFIX-macos-arm64.tar.gz" > "videocanvas$SUFFIX-macos-arm64.tar.gz.sha256"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videocanvas-${{ matrix.asset }}
+          path: videocanvas-*
+          if-no-files-found: error
+          retention-days: 7

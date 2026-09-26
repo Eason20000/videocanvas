@@ -75,6 +75,7 @@ jobs:
           mkdir -p AppDir/usr/bin
           cp target/release/videocanvas AppDir/usr/bin/
           cp packaging/appimage/videocanvas.desktop AppDir/
+          cp packaging/appimage/videocanvas.png AppDir/
           cp packaging/appimage/AppRun AppDir/
           chmod +x AppDir/AppRun AppDir/usr/bin/videocanvas
           curl --fail --location --output linuxdeploy-x86_64.AppImage \

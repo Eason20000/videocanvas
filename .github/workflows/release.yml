@@ -1,0 +1,80 @@
+name: release
+# Runs only when a GitHub Release is published. Each matrix job builds,
+# packages and uploads its own artifact to that release.
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: windows-x64
+          - os: ubuntu-22.04
+            asset: linux-x64
+          - os: macos-14
+            asset: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm yasm pkg-config clang libasound2-dev
+      - name: Install system deps (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm pkg-config
+      - name: Build static FFmpeg (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: bash scripts/build-ffmpeg.sh
+      - name: Install static FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install ffmpeg:x64-windows-static
+      - name: Cargo build
+        run: cargo build --release
+        env:
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $zip = "videocanvas-${{ github.event.release.tag_name }}-windows-x64.zip"
+          Compress-Archive -Path target\release\videocanvas.exe, README.md, LICENSE -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File "$zip.sha256" -Encoding ascii
+      - name: Package (Linux AppImage)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          mkdir -p AppDir/usr/bin
+          cp target/release/videocanvas AppDir/usr/bin/
+          cp packaging/appimage/videocanvas.desktop AppDir/
+          cp packaging/appimage/icon.svg AppDir/videocanvas.svg
+          cp packaging/appimage/AppRun AppDir/
+          chmod +x AppDir/AppRun AppDir/usr/bin/videocanvas
+          curl --fail --location --output linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+          mv videocanvas-x86_64.AppImage "videocanvas-$TAG-linux-x64.AppImage"
+          sha256sum "videocanvas-$TAG-linux-x64.AppImage" > "videocanvas-$TAG-linux-x64.AppImage.sha256"
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          mkdir -p stage
+          cp target/release/videocanvas README.md LICENSE stage/
+          tar -czf "videocanvas-$TAG-macos-arm64.tar.gz" -C stage videocanvas README.md LICENSE
+          shasum -a 256 "videocanvas-$TAG-macos-arm64.tar.gz" > "videocanvas-$TAG-macos-arm64.tar.gz.sha256"
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: videocanvas-*

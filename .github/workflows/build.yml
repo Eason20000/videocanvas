@@ -1,0 +1,36 @@
+name: build
+# Build check on every push. No packaging, no uploads; failures go red.
+on:
+  push:
+  pull_request:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            # x64-windows-static triplet, see release.yml for details.
+          - os: ubuntu-22.04
+          - os: macos-14
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm yasm pkg-config clang libasound2-dev
+      - name: Install system deps (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm pkg-config
+      - name: Build static FFmpeg (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: bash scripts/build-ffmpeg.sh
+      - name: Install static FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install ffmpeg:x64-windows-static
+      - name: Cargo build
+        run: cargo build --release
+        env:
+          VCPKG_ROOT: ${{ env.VCPKG_INSTALLATION_ROOT }}
+          VCPKG_DEFAULT_TRIPLET: x64-windows-static

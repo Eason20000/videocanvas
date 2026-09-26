@@ -3,6 +3,5 @@ Type=Application
 Name=videocanvas
 Comment=Convert videos to MIDI for Roland Sound Canvas
 Exec=videocanvas
-Icon=videocanvas
 Categories=AudioVideo;Video;
 Terminal=true
